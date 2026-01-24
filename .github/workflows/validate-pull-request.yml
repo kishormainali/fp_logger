@@ -1,0 +1,27 @@
+# .github/workflows/validate-pull-request.yml
+name: Validate Pull Request
+on:
+  pull_request:
+    branches:
+      - "*" # all branches
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📚 Git Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐦 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 📦 Install Dependencies
+        run: flutter pub get
+
+      - name: 📝 Format Code
+        run: dart format .
+
+      - name: 📝 Analyze Code
+        run: dart analyze .

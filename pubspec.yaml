@@ -1,0 +1,51 @@
+name: fp_logger
+description: "A simple logger for flutter and dart projects. It supports logging to console with formatted messages and stacktrace."
+version: 3.0.0
+homepage: https://kishormainali.com
+repository: https://github.com/kishormainali/fp_logger
+keywords:
+  - logger
+  - dio
+  - flutter
+  - dart
+  - gql_link
+  - http client
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+topics:
+  - logger
+  - flutter
+  - dart
+
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  ansicolor: ^2.0.3
+
+  dio: ^5.9.0
+
+  gql_link: ^1.1.0
+
+  gql_exec: ^1.0.0+1
+
+  equatable: ^2.0.8
+
+  web: ^1.1.1
+
+
+dev_dependencies:
+  lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
