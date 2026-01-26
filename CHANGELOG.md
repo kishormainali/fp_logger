@@ -1,5 +1,11 @@
 # Changelog
 
+### 3.0.1 (2026-01-25)
+
+- Export LoggerLink
+- Minor fixes and improvements
+- Enabled error,warning and info logs in release mode
+
 ## 3.0.0 (2026-01-24)
 
 - Removed `_redactor` instances from `DioLogger`, `GraphqlDioLogger`, and `LoggerLink`
