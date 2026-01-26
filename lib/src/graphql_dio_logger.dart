@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:gql_link/gql_link.dart';
 
 import 'logger.dart';
+import 'utils/_utils.dart';
 
 /// Cached encoder instance - reused across all requests.
 const _encoder = JsonEncoder.withIndent('  ');
@@ -19,32 +20,32 @@ const _responseParser = ResponseParser();
 class GraphqlDioLogger extends Interceptor {
   /// {@macro graphql_dio_logger}
   const GraphqlDioLogger({
-    this.logAuthHeader = false,
-    this.logRequestHeader = true,
-    this.logRequestBody = false,
-    this.logResponseHeader = false,
-    this.logResponseBody = true,
-    this.logError = true,
+    this.authHeader = false,
+    this.requestHeader = true,
+    this.requestBody = false,
+    this.responseHeader = false,
+    this.responseBody = true,
+    this.error = true,
     this.redact = true,
   });
 
   /// Whether to log the authorization header.
-  final bool logAuthHeader;
+  final bool authHeader;
 
   /// Whether to log request headers.
-  final bool logRequestHeader;
+  final bool requestHeader;
 
   /// Whether to log the request body (query + variables).
-  final bool logRequestBody;
+  final bool requestBody;
 
   /// Whether to log response headers.
-  final bool logResponseHeader;
+  final bool responseHeader;
 
   /// Whether to log the response body.
-  final bool logResponseBody;
+  final bool responseBody;
 
   /// Whether to log errors.
-  final bool logError;
+  final bool error;
 
   /// Whether to redact sensitive information from logs (PCI DSS compliant).
   /// this is to override the global redact flag in Logger
@@ -53,18 +54,23 @@ class GraphqlDioLogger extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     try {
+      final start = DateTime.now();
       final data = options.data;
       if (data is! Map<String, dynamic>) {
         return handler.next(options);
       }
 
-      final messages = <String>[];
+      final operationName = parseOperationNameFromRequest(data);
 
-      if (logRequestHeader) {
+      final messages = <String>[
+        'GraphQL Request Started -  ${options.uri} ${operationName != null ? 'With OperationName: $operationName' : ''}  @ $start',
+      ];
+
+      if (requestHeader) {
         _addRequestHeaders(options, messages);
       }
 
-      if (logRequestBody) {
+      if (requestBody) {
         _addRequestBody(data, messages);
       }
 
@@ -80,6 +86,8 @@ class GraphqlDioLogger extends Interceptor {
       );
     }
 
+    options.extra['startTime'] = DateTime.now();
+
     handler.next(options);
   }
 
@@ -90,17 +98,28 @@ class GraphqlDioLogger extends Interceptor {
       final messages = <String>[];
       Object? error;
 
-      if (logResponseHeader) {
+      if (responseHeader) {
         _addResponseHeaders(response, messages);
       }
 
-      if (logResponseBody) {
+      if (responseBody) {
         error = _addResponseBody(response, messages);
       }
 
+      DateTime? start = response.requestOptions.extra['startTime'];
+      if (start != null) {
+        messages.add(
+          'GraphQL Request Ended: ${response.requestOptions.uri} in ${DateTime.now().difference(start).inMilliseconds}ms',
+        );
+      }
+
       if (messages.isNotEmpty) {
-        Logger.boxed(messages,
-            tag: 'GraphQL | Response', error: error, redact: redact);
+        Logger.boxed(
+          messages,
+          tag: 'GraphQL | Response',
+          error: error,
+          redact: redact,
+        );
       }
     } catch (e, stackTrace) {
       Logger.e(
@@ -116,7 +135,7 @@ class GraphqlDioLogger extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (logError) {
+    if (error) {
       try {
         _logDioError(err);
       } catch (e, stackTrace) {
@@ -137,7 +156,7 @@ class GraphqlDioLogger extends Interceptor {
     try {
       final headers = Map<String, dynamic>.from(options.headers);
 
-      if (!logAuthHeader) {
+      if (!authHeader) {
         headers.remove(HttpHeaders.authorizationHeader);
         headers.remove('authorization');
         headers.remove('Authorization');
@@ -145,7 +164,7 @@ class GraphqlDioLogger extends Interceptor {
 
       if (headers.isEmpty) return;
 
-      messages.add('Headers:::\n${_encoder.convert(headers)}');
+      messages.add(_encoder.convert(headers));
     } catch (e) {
       messages.add('Headers::: [Failed to encode]');
     }
@@ -156,12 +175,12 @@ class GraphqlDioLogger extends Interceptor {
     try {
       final query = body['query'];
       if (query is String && query.isNotEmpty) {
-        messages.add('Query:::\n$query');
+        messages.add(query);
       }
 
       final variables = body['variables'];
       if (variables is Map<String, dynamic> && variables.isNotEmpty) {
-        messages.add('Variables:::\n${_encoder.convert(variables)}');
+        messages.add(_encoder.convert(variables));
       }
     } catch (e) {
       messages.add('Body::: [Failed to encode]');
@@ -174,7 +193,7 @@ class GraphqlDioLogger extends Interceptor {
       final headers = response.headers.map;
       if (headers.isEmpty) return;
 
-      messages.add('Headers:::\n${_encoder.convert(headers)}');
+      messages.add(_encoder.convert(headers));
     } catch (e) {
       messages.add('Headers::: [Failed to encode]');
     }
@@ -195,7 +214,7 @@ class GraphqlDioLogger extends Interceptor {
       }
 
       if (parsedResponse.data != null) {
-        messages.add('Data:::\n${_encoder.convert(parsedResponse.data)}');
+        messages.add(_encoder.convert(parsedResponse.data));
       }
     } catch (e) {
       messages.add('Data::: [Failed to encode]');

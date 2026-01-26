@@ -164,3 +164,11 @@ dynamic decode(dynamic message) {
     return message;
   }
 }
+
+String? parseOperationNameFromRequest(Map<String, dynamic> data) {
+  final operationName = data['operationName'];
+  if (operationName is String && operationName.isNotEmpty) {
+    return operationName;
+  }
+  return null;
+}

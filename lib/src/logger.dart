@@ -49,6 +49,14 @@ enum _LogLevel {
       _LogLevel.success => '✅',
     };
   }
+
+  /// Whether this log level can be logged in production builds.
+  bool get canLogInProduction {
+    return switch (this) {
+      _LogLevel.error || _LogLevel.warning || _LogLevel.info => true,
+      _ => false,
+    };
+  }
 }
 
 /// Cached redactor instance - singleton, compiled regex reused.
@@ -95,7 +103,8 @@ abstract class Logger {
     bool boxListItem = false,
     bool? redact,
   }) {
-    if (kReleaseMode) return;
+    // Do not log debug in release mode
+    if (kReleaseMode && !level.canLogInProduction) return;
 
     try {
       final shouldRedact = redact ?? globalRedact;

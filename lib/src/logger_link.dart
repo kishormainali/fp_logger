@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:gql_exec/gql_exec.dart';
 import 'package:gql_link/gql_link.dart';
@@ -13,10 +14,33 @@ const _encoder = JsonEncoder.withIndent('  ');
 /// {@endtemplate}
 class LoggerLink extends Link {
   /// {@macro logger_link}
-  const LoggerLink({this.debug = false, this.redact = true});
+  const LoggerLink({
+    this.authHeader = false,
+    this.requestHeader = true,
+    this.requestBody = false,
+    this.responseHeader = false,
+    this.responseBody = true,
+    this.error = true,
+    this.redact = true,
+  });
 
-  /// Whether to log detailed debug information.
-  final bool debug;
+  /// Whether to log the authorization header.
+  final bool authHeader;
+
+  /// Whether to log request headers.
+  final bool requestHeader;
+
+  /// Whether to log the request body.
+  final bool requestBody;
+
+  /// Whether to log response headers.
+  final bool responseHeader;
+
+  /// Whether to log the response body.
+  final bool responseBody;
+
+  /// Whether to log errors.
+  final bool error;
 
   /// Whether to redact sensitive information from logs.
   /// This is to override the global redact flag in Logger
@@ -73,10 +97,8 @@ class LoggerLink extends Link {
         'GraphQL Request: $operationName @ ${start.toIso8601String()}',
       ];
 
-      if (debug) {
-        _addHeadersToMessages(request, messages);
-        _addVariablesToMessages(request, messages);
-      }
+      _addHeadersToMessages(request, messages);
+      _addVariablesToMessages(request, messages);
 
       Logger.boxed(messages, tag: 'LoggerLink | Request', redact: redact);
     } catch (e, stackTrace) {
@@ -94,7 +116,12 @@ class LoggerLink extends Link {
     try {
       final headers = request.context.entry<HttpLinkHeaders>()?.headers;
       if (headers != null && headers.isNotEmpty) {
-        messages.add('Headers:::\n${_encoder.convert(headers)}');
+        if (!authHeader) {
+          headers.remove(HttpHeaders.authorizationHeader);
+          headers.remove('Authorization');
+          headers.remove('authorization');
+        }
+        messages.add(_encoder.convert(headers));
       }
     } catch (e) {
       messages.add('Headers::: [Failed to encode]');
@@ -105,8 +132,8 @@ class LoggerLink extends Link {
   void _addVariablesToMessages(Request request, List<String> messages) {
     try {
       final variables = request.variables;
-      if (variables.isNotEmpty) {
-        messages.add('Variables:::\n${_encoder.convert(variables)}');
+      if (variables.isNotEmpty && requestBody) {
+        messages.add(_encoder.convert(variables));
       }
     } catch (e) {
       messages.add('Variables::: [Failed to encode]');
@@ -120,15 +147,17 @@ class LoggerLink extends Link {
       final messages = <String>[
         'GraphQL Response: $operationName in ${duration.inMilliseconds}ms',
       ];
+      if (responseHeader) {
+        _addResponseHeaders(response, messages);
+      }
 
-      if (debug && response.data != null) {
+      if (responseBody && response.data != null) {
         try {
-          messages.add('Data:::\n${_encoder.convert(response.data)}');
+          messages.add(_encoder.convert(response.data));
         } catch (e) {
           messages.add('Data::: [Failed to encode]');
         }
       }
-
       Logger.boxed(messages, tag: 'LoggerLink | Response', redact: redact);
     } catch (e, stackTrace) {
       Logger.e(
@@ -140,19 +169,30 @@ class LoggerLink extends Link {
     }
   }
 
+  /// Adds response headers to log messages if available.
+  void _addResponseHeaders(Response response, List<String> messages) {
+    try {
+      final headers =
+          response.context.entry<HttpLinkResponseContext>()?.headers;
+      if (headers != null && headers.isNotEmpty) {
+        messages.add(_encoder.convert(headers));
+      }
+    } catch (e) {
+      messages.add('Response Headers::: [Failed to encode]');
+    }
+  }
+
   /// Logs GraphQL errors from response.
   void _logGraphQLError(
       Response response, String operationName, Duration duration) {
     try {
       final errors = response.errors!;
-      final errorMessages = errors.map((e) => e.message).join(', ');
 
       final messages = <String>[
-        'GraphQL Response: $operationName in ${duration.inMilliseconds}ms',
-        'Errors: $errorMessages',
+        'GraphQL Response: $operationName in ${duration.inMilliseconds}ms with errors'
       ];
 
-      if (debug) {
+      if (error) {
         try {
           final errorData = errors
               .map((e) => {
@@ -164,7 +204,7 @@ class LoggerLink extends Link {
                     'extensions': e.extensions,
                   })
               .toList();
-          messages.add('Error Details:::\n${_encoder.convert(errorData)}');
+          messages.add(_encoder.convert(errorData));
         } catch (e) {
           messages.add('Error Details::: [Failed to encode]');
         }
@@ -172,7 +212,7 @@ class LoggerLink extends Link {
         // Include partial data if available
         if (response.data != null) {
           try {
-            messages.add('Partial Data:::\n${_encoder.convert(response.data)}');
+            messages.add(_encoder.convert(response.data));
           } catch (e) {
             messages.add('Partial Data::: [Failed to encode]');
           }
@@ -205,16 +245,13 @@ class LoggerLink extends Link {
   ) {
     try {
       final messages = <String>[
-        'GraphQL Link Error: $operationName in ${duration.inMilliseconds}ms',
-        'Type: ${exception.runtimeType}',
+        'GraphQL Link Error: $operationName in ${duration.inMilliseconds}ms with exception ${exception.runtimeType}',
       ];
 
       if (exception is ServerException) {
-        messages.add('Server Error: ${exception.originalException}');
-        if (debug && exception.parsedResponse != null) {
+        if (error && exception.parsedResponse != null) {
           try {
-            messages.add(
-                'Parsed Response:::\n${_encoder.convert(exception.parsedResponse!.data)}');
+            messages.add(_encoder.convert(exception.parsedResponse!.data));
           } catch (e) {
             messages.add('Parsed Response::: [Failed to encode]');
           }
@@ -248,7 +285,7 @@ class LoggerLink extends Link {
   ) {
     try {
       Logger.e(
-        'GraphQL $type: $operationName in ${duration.inMilliseconds}ms\nError: $exception',
+        'GraphQL $type: $operationName in ${duration.inMilliseconds}ms with exception: ${exception.runtimeType}',
         error: exception,
         stackTrace: stackTrace,
         tag: 'LoggerLink | $type',

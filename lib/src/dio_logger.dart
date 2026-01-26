@@ -16,32 +16,32 @@ const _encoder = JsonEncoder.withIndent('  ');
 class DioLogger extends Interceptor {
   /// {@macro dio_logger}
   const DioLogger({
-    this.logAuthHeader = false,
-    this.logRequestHeader = true,
-    this.logRequestBody = false,
-    this.logResponseHeader = false,
-    this.logResponseBody = true,
-    this.logError = true,
+    this.authHeader = false,
+    this.requestHeader = true,
+    this.requestBody = false,
+    this.responseHeader = false,
+    this.responseBody = true,
+    this.error = true,
     this.redact = true,
   });
 
   /// Whether to log the authorization header.
-  final bool logAuthHeader;
+  final bool authHeader;
 
   /// Whether to log request headers.
-  final bool logRequestHeader;
+  final bool requestHeader;
 
   /// Whether to log the request body.
-  final bool logRequestBody;
+  final bool requestBody;
 
   /// Whether to log response headers.
-  final bool logResponseHeader;
+  final bool responseHeader;
 
   /// Whether to log the response body.
-  final bool logResponseBody;
+  final bool responseBody;
 
   /// Whether to log errors.
-  final bool logError;
+  final bool error;
 
   /// Whether to redact sensitive information from logs (PCI DSS compliant).
   /// this is to override the global redact flag in Logger
@@ -49,16 +49,18 @@ class DioLogger extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final start = DateTime.now();
+
     try {
       final messages = <String>[
-        '${options.method} ${options.uri}',
+        'Request ${options.uri} with method ${options.method} started @ $start',
       ];
 
-      if (logRequestHeader) {
+      if (requestHeader) {
         _addRequestHeaders(options, messages);
       }
 
-      if (logRequestBody && _canLogRequestBody(options)) {
+      if (requestBody && _canLogRequestBody(options)) {
         _addRequestBody(options, messages);
       }
 
@@ -73,7 +75,7 @@ class DioLogger extends Interceptor {
         tag: 'Dio | LogError',
       );
     }
-
+    options.extra['startTime'] = start;
     handler.next(options);
   }
 
@@ -83,15 +85,22 @@ class DioLogger extends Interceptor {
     try {
       final messages = <String>[];
 
-      if (logResponseHeader) {
+      if (responseHeader) {
         messages.add(
           '${response.requestOptions.method} ${response.statusCode} ${response.realUri}',
         );
         _addResponseHeaders(response, messages);
       }
 
-      if (logResponseBody) {
+      if (responseBody) {
         _addResponseBody(response, messages);
+      }
+
+      DateTime? start = response.requestOptions.extra['startTime'];
+      if (start != null) {
+        messages.add(
+          'Request ${response.requestOptions.uri} with method ${response.requestOptions.method}  completed in ${DateTime.now().difference(start).inMilliseconds}ms',
+        );
       }
 
       if (messages.isNotEmpty) {
@@ -111,7 +120,7 @@ class DioLogger extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (logError) {
+    if (error) {
       try {
         _logDioError(err);
       } catch (e, stackTrace) {
@@ -123,7 +132,6 @@ class DioLogger extends Interceptor {
         );
       }
     }
-
     handler.next(err);
   }
 
@@ -137,7 +145,7 @@ class DioLogger extends Interceptor {
     try {
       final headers = Map<String, dynamic>.from(options.headers);
 
-      if (!logAuthHeader) {
+      if (!authHeader) {
         headers.remove(HttpHeaders.authorizationHeader);
         headers.remove('authorization');
         headers.remove('Authorization');
@@ -145,7 +153,7 @@ class DioLogger extends Interceptor {
 
       if (headers.isEmpty) return;
 
-      messages.add('Headers:::\n${_encoder.convert(headers)}');
+      messages.add(_encoder.convert(headers));
     } catch (e) {
       messages.add('Headers::: [Failed to encode]');
     }
@@ -162,18 +170,18 @@ class DioLogger extends Interceptor {
       }
 
       if (body is Map || body is List) {
-        messages.add('Data:::\n${_encoder.convert(body)}');
+        messages.add(_encoder.convert(body));
         return;
       }
 
       if (body is String && body.isNotEmpty) {
-        messages.add('Data:::\n$body');
+        messages.add(body);
         return;
       }
 
-      messages.add('Data::: [${body.runtimeType}]');
+      messages.add('Request Type::: [${body.runtimeType}]');
     } catch (e) {
-      messages.add('Data::: [Failed to encode]');
+      messages.add('Request::: [Failed to encode]');
     }
   }
 
@@ -192,7 +200,7 @@ class DioLogger extends Interceptor {
 
       if (fields.isEmpty) return;
 
-      messages.add('FormData:::\n${_encoder.convert(fields)}');
+      messages.add(_encoder.convert(fields));
     } catch (e) {
       messages.add('FormData::: [Failed to encode]');
     }
@@ -204,9 +212,9 @@ class DioLogger extends Interceptor {
       final headers = response.headers.map;
       if (headers.isEmpty) return;
 
-      messages.add('Headers:::\n${_encoder.convert(headers)}');
+      messages.add(_encoder.convert(headers));
     } catch (e) {
-      messages.add('Headers::: [Failed to encode]');
+      messages.add('Response Headers::: [Failed to encode]');
     }
   }
 
@@ -221,25 +229,24 @@ class DioLogger extends Interceptor {
       }
 
       if (body is Map || body is List) {
-        messages.add('Response:::\n${_encoder.convert(body)}');
+        messages.add(_encoder.convert(body));
         return;
       }
 
       if (body is Uint8List) {
-        messages.add('Response:::\n${_formatBytes(body)}');
+        messages.add(_formatBytes(body));
         return;
       }
 
       if (body is String) {
         final parsed = _tryParseJson(body);
         if (parsed is Map || parsed is List) {
-          messages.add('Response:::\n${_encoder.convert(parsed)}');
+          messages.add(_encoder.convert(parsed));
         } else {
-          messages.add('Response:::\n$body');
+          messages.add(body);
         }
         return;
       }
-
       messages.add('Response::: [${body.runtimeType}]');
     } catch (e) {
       messages.add('Response::: [Failed to encode]');
@@ -286,13 +293,14 @@ class DioLogger extends Interceptor {
     const tag = 'Dio | Error';
     final uri = err.requestOptions.uri;
     final method = err.requestOptions.method;
+    DateTime? startTime = err.requestOptions.extra['startTime'];
 
     switch (err.type) {
       case DioExceptionType.badResponse:
         _logBadResponse(err, tag);
       case DioExceptionType.connectionTimeout:
         Logger.e(
-          '$method $uri\nConnection timeout',
+          'Request $uri with method $method\nConnection timeout in ${startTime != null ? DateTime.now().difference(startTime).inMilliseconds : 'unknown'}ms',
           error: err.error,
           stackTrace: err.stackTrace,
           tag: tag,
@@ -300,7 +308,7 @@ class DioLogger extends Interceptor {
         );
       case DioExceptionType.sendTimeout:
         Logger.e(
-          '$method $uri\nSend timeout',
+          'Request $uri with method $method\nSend timeout in ${startTime != null ? DateTime.now().difference(startTime).inMilliseconds : 'unknown'}ms',
           error: err.error,
           stackTrace: err.stackTrace,
           tag: tag,
@@ -308,7 +316,7 @@ class DioLogger extends Interceptor {
         );
       case DioExceptionType.receiveTimeout:
         Logger.e(
-          '$method $uri\nReceive timeout',
+          'Request $uri with method $method received timeout in ${startTime != null ? DateTime.now().difference(startTime).inMilliseconds : 'unknown'}ms',
           error: err.error,
           stackTrace: err.stackTrace,
           tag: tag,
@@ -316,17 +324,21 @@ class DioLogger extends Interceptor {
         );
       case DioExceptionType.connectionError:
         Logger.e(
-          '$method $uri\nConnection error: ${err.message}',
+          'Request $uri with method $method\nConnection error: ${err.message}',
           error: err.error,
           stackTrace: err.stackTrace,
           tag: tag,
           redact: redact,
         );
       case DioExceptionType.cancel:
-        Logger.w('$method $uri\nRequest cancelled', tag: tag, redact: redact);
+        Logger.w(
+          'Request $uri with method $method cancelled',
+          tag: tag,
+          redact: redact,
+        );
       case DioExceptionType.badCertificate:
         Logger.e(
-          '$method $uri\nBad certificate',
+          'Request $uri with method $method detected bad certificates',
           error: err.error,
           stackTrace: err.stackTrace,
           tag: tag,
@@ -334,7 +346,7 @@ class DioLogger extends Interceptor {
         );
       case DioExceptionType.unknown:
         Logger.e(
-          '$method $uri\nUnknown error: ${err.message}',
+          'Request $uri with method $method failed with unknown error: ${err.message} in ${startTime != null ? DateTime.now().difference(startTime).inMilliseconds : 'unknown'}ms',
           error: err.error,
           stackTrace: err.stackTrace,
           tag: tag,
@@ -357,9 +369,9 @@ class DioLogger extends Interceptor {
     if (data != null) {
       try {
         if (data is Map || data is List) {
-          messages.add('Response:::\n${_encoder.convert(data)}');
+          messages.add(_encoder.convert(data));
         } else if (data is String && data.isNotEmpty) {
-          messages.add('Response:::\n$data');
+          messages.add(data);
         }
       } catch (_) {
         messages.add('Response::: [Failed to encode]');
