@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:fp_logger/src/options.dart';
 
 import 'logger.dart';
 
@@ -16,36 +17,12 @@ const _encoder = JsonEncoder.withIndent('  ');
 class DioLogger extends Interceptor {
   /// {@macro dio_logger}
   const DioLogger({
-    this.authHeader = false,
-    this.requestHeader = true,
-    this.requestBody = false,
-    this.responseHeader = false,
-    this.responseBody = true,
-    this.error = true,
-    this.redact = true,
+    this.loggerOptions = const LoggerOptions(),
   });
 
-  /// Whether to log the authorization header.
-  final bool authHeader;
+  final LoggerOptions loggerOptions;
 
-  /// Whether to log request headers.
-  final bool requestHeader;
-
-  /// Whether to log the request body.
-  final bool requestBody;
-
-  /// Whether to log response headers.
-  final bool responseHeader;
-
-  /// Whether to log the response body.
-  final bool responseBody;
-
-  /// Whether to log errors.
-  final bool error;
-
-  /// Whether to redact sensitive information from logs (PCI DSS compliant).
-  /// this is to override the global redact flag in Logger
-  final bool redact;
+  bool get redact => loggerOptions.redact;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -56,16 +33,17 @@ class DioLogger extends Interceptor {
         'Request ${options.uri} with method ${options.method} started @ $start',
       ];
 
-      if (requestHeader) {
+      if (loggerOptions.requestHeader) {
         _addRequestHeaders(options, messages);
       }
 
-      if (requestBody && _canLogRequestBody(options)) {
+      if (loggerOptions.requestBody && _canLogRequestBody(options)) {
         _addRequestBody(options, messages);
       }
 
       if (messages.length > 1) {
-        Logger.boxed(messages, tag: 'Dio | Request', redact: redact);
+        Logger.boxed(messages,
+            tag: 'Dio | Request', redact: loggerOptions.redact);
       }
     } catch (e, stackTrace) {
       Logger.e(
@@ -85,14 +63,14 @@ class DioLogger extends Interceptor {
     try {
       final messages = <String>[];
 
-      if (responseHeader) {
+      if (loggerOptions.responseHeader) {
         messages.add(
           '${response.requestOptions.method} ${response.statusCode} ${response.realUri}',
         );
         _addResponseHeaders(response, messages);
       }
 
-      if (responseBody) {
+      if (loggerOptions.responseBody) {
         _addResponseBody(response, messages);
       }
 
@@ -104,7 +82,8 @@ class DioLogger extends Interceptor {
       }
 
       if (messages.isNotEmpty) {
-        Logger.boxed(messages, tag: 'Dio | Response', redact: redact);
+        Logger.boxed(messages,
+            tag: 'Dio | Response', redact: loggerOptions.redact);
       }
     } catch (e, stackTrace) {
       Logger.e(
@@ -120,7 +99,7 @@ class DioLogger extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (error) {
+    if (loggerOptions.error) {
       try {
         _logDioError(err);
       } catch (e, stackTrace) {
@@ -145,7 +124,7 @@ class DioLogger extends Interceptor {
     try {
       final headers = Map<String, dynamic>.from(options.headers);
 
-      if (!authHeader) {
+      if (!loggerOptions.authHeader) {
         headers.remove(HttpHeaders.authorizationHeader);
         headers.remove('authorization');
         headers.remove('Authorization');

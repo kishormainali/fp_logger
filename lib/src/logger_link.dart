@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:fp_logger/src/options.dart';
 import 'package:gql_exec/gql_exec.dart';
 import 'package:gql_link/gql_link.dart';
 
@@ -14,37 +15,10 @@ const _encoder = JsonEncoder.withIndent('  ');
 /// {@endtemplate}
 class LoggerLink extends Link {
   /// {@macro logger_link}
-  const LoggerLink({
-    this.authHeader = false,
-    this.requestHeader = true,
-    this.requestBody = false,
-    this.responseHeader = false,
-    this.responseBody = true,
-    this.error = true,
-    this.redact = true,
-  });
+  const LoggerLink({this.options = const LoggerOptions()});
 
-  /// Whether to log the authorization header.
-  final bool authHeader;
-
-  /// Whether to log request headers.
-  final bool requestHeader;
-
-  /// Whether to log the request body.
-  final bool requestBody;
-
-  /// Whether to log response headers.
-  final bool responseHeader;
-
-  /// Whether to log the response body.
-  final bool responseBody;
-
-  /// Whether to log errors.
-  final bool error;
-
-  /// Whether to redact sensitive information from logs.
-  /// This is to override the global redact flag in Logger
-  final bool redact;
+  /// Whether to log detailed debug information.
+  final LoggerOptions options;
 
   @override
   Stream<Response> request(Request request, [NextLink? forward]) async* {
@@ -94,13 +68,18 @@ class LoggerLink extends Link {
   void _logRequest(Request request, String operationName, DateTime start) {
     try {
       final messages = <String>[
-        'GraphQL Request: $operationName @ ${start.toIso8601String()}',
+        'GraphQL Request $operationName started at ${start.toIso8601String()}',
       ];
 
       _addHeadersToMessages(request, messages);
+      _addQueryToMessages(request, messages);
       _addVariablesToMessages(request, messages);
 
-      Logger.boxed(messages, tag: 'LoggerLink | Request', redact: redact);
+      Logger.boxed(
+        messages,
+        tag: 'LoggerLink | Request',
+        redact: options.redact,
+      );
     } catch (e, stackTrace) {
       Logger.e(
         'Failed to log request: $operationName',
@@ -115,11 +94,12 @@ class LoggerLink extends Link {
   void _addHeadersToMessages(Request request, List<String> messages) {
     try {
       final headers = request.context.entry<HttpLinkHeaders>()?.headers;
-      if (headers != null && headers.isNotEmpty) {
-        if (!authHeader) {
-          headers.remove(HttpHeaders.authorizationHeader);
-          headers.remove('Authorization');
-          headers.remove('authorization');
+      if (headers != null && headers.isNotEmpty && options.requestHeader) {
+        if (!options.authHeader) {
+          headers.removeWhere(
+            (key, value) =>
+                key.toLowerCase() == HttpHeaders.authorizationHeader,
+          );
         }
         messages.add(_encoder.convert(headers));
       }
@@ -128,11 +108,23 @@ class LoggerLink extends Link {
     }
   }
 
+  /// Adds query to log messages.
+  void _addQueryToMessages(Request request, List<String> messages) {
+    try {
+      final query = request.operation.document;
+      if (options.requestBody) {
+        messages.add(_encoder.convert({'query': query.toString()}));
+      }
+    } catch (e) {
+      messages.add('Query::: [Failed to encode]');
+    }
+  }
+
   /// Adds variables to log messages if available.
   void _addVariablesToMessages(Request request, List<String> messages) {
     try {
       final variables = request.variables;
-      if (variables.isNotEmpty && requestBody) {
+      if (variables.isNotEmpty && options.requestBody) {
         messages.add(_encoder.convert(variables));
       }
     } catch (e) {
@@ -145,20 +137,25 @@ class LoggerLink extends Link {
       Response response, String operationName, Duration duration) {
     try {
       final messages = <String>[
-        'GraphQL Response: $operationName in ${duration.inMilliseconds}ms',
+        'GraphQL Request $operationName succeeded in ${duration.inMilliseconds}ms',
       ];
-      if (responseHeader) {
+      if (options.responseHeader) {
         _addResponseHeaders(response, messages);
       }
 
-      if (responseBody && response.data != null) {
+      if (options.responseBody && response.data != null) {
         try {
           messages.add(_encoder.convert(response.data));
         } catch (e) {
           messages.add('Data::: [Failed to encode]');
         }
       }
-      Logger.boxed(messages, tag: 'LoggerLink | Response', redact: redact);
+
+      Logger.boxed(
+        messages,
+        tag: 'LoggerLink | Response',
+        redact: options.redact,
+      );
     } catch (e, stackTrace) {
       Logger.e(
         'Failed to log response: $operationName',
@@ -187,12 +184,13 @@ class LoggerLink extends Link {
       Response response, String operationName, Duration duration) {
     try {
       final errors = response.errors!;
+      final errorMessages = errors.map((e) => e.message).join('; ');
 
       final messages = <String>[
-        'GraphQL Response: $operationName in ${duration.inMilliseconds}ms with errors'
+        'GraphQL Request $operationName failed with $errorMessages in ${duration.inMilliseconds}ms',
       ];
 
-      if (error) {
+      if (options.error) {
         try {
           final errorData = errors
               .map((e) => {
@@ -224,7 +222,7 @@ class LoggerLink extends Link {
         error: errors.first,
         stackTrace: StackTrace.current,
         tag: 'LoggerLink | GraphQL Error',
-        redact: redact,
+        redact: options.redact,
       );
     } catch (e, stackTrace) {
       Logger.e(
@@ -245,11 +243,11 @@ class LoggerLink extends Link {
   ) {
     try {
       final messages = <String>[
-        'GraphQL Link Error: $operationName in ${duration.inMilliseconds}ms with exception ${exception.runtimeType}',
+        'GraphQL Request $operationName failed with ${exception.runtimeType} in ${duration.inMilliseconds}ms',
       ];
 
       if (exception is ServerException) {
-        if (error && exception.parsedResponse != null) {
+        if (options.error && exception.parsedResponse != null) {
           try {
             messages.add(_encoder.convert(exception.parsedResponse!.data));
           } catch (e) {
@@ -262,8 +260,8 @@ class LoggerLink extends Link {
         messages.join('\n'),
         error: exception,
         stackTrace: stackTrace,
-        tag: 'LoggerLink | Link Error',
-        redact: redact,
+        tag: 'LoggerLink | GraphQL Error',
+        redact: options.redact,
       );
     } catch (e, st) {
       Logger.e(
@@ -285,11 +283,11 @@ class LoggerLink extends Link {
   ) {
     try {
       Logger.e(
-        'GraphQL $type: $operationName in ${duration.inMilliseconds}ms with exception: ${exception.runtimeType}',
+        'GraphQL Request  $operationName failed with $type in ${duration.inMilliseconds}ms',
         error: exception,
         stackTrace: stackTrace,
-        tag: 'LoggerLink | $type',
-        redact: redact,
+        tag: 'LoggerLink | GraphQL Error',
+        redact: options.redact,
       );
     } catch (e, st) {
       Logger.e(

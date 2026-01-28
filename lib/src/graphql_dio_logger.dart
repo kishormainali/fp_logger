@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:fp_logger/src/options.dart';
 import 'package:gql_link/gql_link.dart';
 
 import 'logger.dart';
@@ -20,36 +21,13 @@ const _responseParser = ResponseParser();
 class GraphqlDioLogger extends Interceptor {
   /// {@macro graphql_dio_logger}
   const GraphqlDioLogger({
-    this.authHeader = false,
-    this.requestHeader = true,
-    this.requestBody = false,
-    this.responseHeader = false,
-    this.responseBody = true,
-    this.error = true,
-    this.redact = true,
+    this.loggerOptions = const LoggerOptions(),
   });
 
-  /// Whether to log the authorization header.
-  final bool authHeader;
+  /// logger options
+  final LoggerOptions loggerOptions;
 
-  /// Whether to log request headers.
-  final bool requestHeader;
-
-  /// Whether to log the request body (query + variables).
-  final bool requestBody;
-
-  /// Whether to log response headers.
-  final bool responseHeader;
-
-  /// Whether to log the response body.
-  final bool responseBody;
-
-  /// Whether to log errors.
-  final bool error;
-
-  /// Whether to redact sensitive information from logs (PCI DSS compliant).
-  /// this is to override the global redact flag in Logger
-  final bool redact;
+  bool get redact => loggerOptions.redact;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -66,11 +44,11 @@ class GraphqlDioLogger extends Interceptor {
         'GraphQL Request Started -  ${options.uri} ${operationName != null ? 'With OperationName: $operationName' : ''}  @ $start',
       ];
 
-      if (requestHeader) {
+      if (loggerOptions.requestHeader) {
         _addRequestHeaders(options, messages);
       }
 
-      if (requestBody) {
+      if (loggerOptions.requestBody) {
         _addRequestBody(data, messages);
       }
 
@@ -88,7 +66,7 @@ class GraphqlDioLogger extends Interceptor {
 
     options.extra['startTime'] = DateTime.now();
 
-    handler.next(options);
+    return handler.next(options);
   }
 
   @override
@@ -98,11 +76,11 @@ class GraphqlDioLogger extends Interceptor {
       final messages = <String>[];
       Object? error;
 
-      if (responseHeader) {
+      if (loggerOptions.responseHeader) {
         _addResponseHeaders(response, messages);
       }
 
-      if (responseBody) {
+      if (loggerOptions.responseBody) {
         error = _addResponseBody(response, messages);
       }
 
@@ -130,12 +108,12 @@ class GraphqlDioLogger extends Interceptor {
       );
     }
 
-    handler.next(response);
+    return handler.next(response);
   }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (error) {
+    if (loggerOptions.error) {
       try {
         _logDioError(err);
       } catch (e, stackTrace) {
@@ -147,8 +125,7 @@ class GraphqlDioLogger extends Interceptor {
         );
       }
     }
-
-    handler.next(err);
+    return handler.next(err);
   }
 
   /// Adds request headers to messages.
@@ -156,7 +133,7 @@ class GraphqlDioLogger extends Interceptor {
     try {
       final headers = Map<String, dynamic>.from(options.headers);
 
-      if (!authHeader) {
+      if (!loggerOptions.authHeader) {
         headers.remove(HttpHeaders.authorizationHeader);
         headers.remove('authorization');
         headers.remove('Authorization');
