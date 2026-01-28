@@ -1,6 +1,12 @@
 # Changelog
 
-### 3.0.1 (2026-01-25)
+## 3.1.0 (2026-01-28)
+
+- Added `LoggerOptions` class to configure default logger settings
+- Removed separate options from `DioLogger` and `GraphqlDioLogger`
+- Updated LoggerLink to log Query and Mutation operations
+
+## 3.0.1 (2026-01-25)
 
 - Export LoggerLink
 - Minor fixes and improvements
@@ -8,7 +14,6 @@
 
 ## 3.0.0 (2026-01-24)
 
-- Removed `_redactor` instances from `DioLogger`, `GraphqlDioLogger`, and `LoggerLink`
 - All loggers now pass `redact` parameter to `Logger` methods
   `Logger` handles redaction internally via `_redactMessage()` and `_redactError()`
 
