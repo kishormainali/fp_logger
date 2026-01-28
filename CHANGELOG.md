@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.1.1 (2026-01-28)
+
+- Fixed issue with LoggerLink not logging Query and Mutation operations properly
+
 ## 3.1.0 (2026-01-28)
 
 - Added `LoggerOptions` class to configure default logger settings

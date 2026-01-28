@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:fp_logger/src/options.dart';
+import 'package:gql/language.dart';
 import 'package:gql_exec/gql_exec.dart';
 import 'package:gql_link/gql_link.dart';
 
@@ -113,7 +114,7 @@ class LoggerLink extends Link {
     try {
       final query = request.operation.document;
       if (options.requestBody) {
-        messages.add(_encoder.convert({'query': query.toString()}));
+        messages.add(printNode(query));
       }
     } catch (e) {
       messages.add('Query::: [Failed to encode]');

@@ -5,8 +5,8 @@ class LoggerOptions {
   /// {@macro logger_options}
   const LoggerOptions({
     this.authHeader = false,
-    this.requestBody = false,
-    this.requestHeader = true,
+    this.requestBody = true,
+    this.requestHeader = false,
     this.responseBody = true,
     this.responseHeader = false,
     this.error = true,
