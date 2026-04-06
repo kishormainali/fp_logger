@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.1.2 (2026-04-06)
+
+- handle exceptions in stringify method to prevent crashes
+
 ## 3.1.1 (2026-01-28)
 
 - Fixed issue with LoggerLink not logging Query and Mutation operations properly
