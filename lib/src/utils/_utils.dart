@@ -91,7 +91,15 @@ bool _discardBrowserStacktraceLine(String line) {
 
 /// convert dynamic message into list of messages
 List<String> stringifyMessage(dynamic message) {
-  var finalMessage = message is Function ? message() : message;
+  dynamic finalMessage;
+
+  try {
+    finalMessage = message is Function ? message() : message;
+  } on FormatException catch (_) {
+    // Fallback to a printable representation when lazy message evaluation
+    // fails due to invalid formatting.
+    finalMessage = message;
+  }
 
   /// try to decode if string
   if (finalMessage is String) finalMessage = decode(finalMessage);
@@ -99,7 +107,11 @@ List<String> stringifyMessage(dynamic message) {
   if (finalMessage == null) return [];
 
   if (finalMessage is Iterable<String>) {
-    finalMessage = finalMessage.map(decode).toList();
+    try {
+      finalMessage = finalMessage.map(decode).toList();
+    } on FormatException catch (_) {
+      finalMessage = _safeToString(finalMessage);
+    }
   }
 
   if (finalMessage is Map || finalMessage is Iterable) {
@@ -108,15 +120,23 @@ List<String> stringifyMessage(dynamic message) {
           JsonEncoder.withIndent('  ', (object) => object.toString());
       finalMessage = encoder.convert(finalMessage);
     } catch (_) {
-      finalMessage = finalMessage.toString();
+      finalMessage = _safeToString(finalMessage);
     }
   }
 
-  final lines = finalMessage.toString().split('\n');
+  final lines = _safeToString(finalMessage).split('\n');
   if (lines.any((element) => element.length > _lineWidth)) {
     return lines.map(splitLine).expand((element) => element).toList();
   } else {
     return lines;
+  }
+}
+
+String _safeToString(dynamic value) {
+  try {
+    return value.toString();
+  } catch (_) {
+    return '<unprintable message>';
   }
 }
 
