@@ -1,5 +1,7 @@
 # Changelog
 
+## 3.1.3 (2026-04-06)
+
 ## 3.1.2 (2026-04-06)
 
 - handle exceptions in stringify method to prevent crashes
