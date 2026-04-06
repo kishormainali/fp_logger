@@ -179,10 +179,20 @@ Iterable<String> _splitLineByWidth(String rest) {
 /// decodes the message
 dynamic decode(dynamic message) {
   try {
-    return json.decode(message);
+    if (_canDecode(message)) {
+      return json.decode(message);
+    }
+    return message;
   } catch (_) {
     return message;
   }
+}
+
+bool _canDecode(dynamic message) {
+  if (message is! String) return false;
+  final trimmed = message.trim();
+  final jsonRegex = RegExp(r'^[\s\n]*({.*}|[.*])[\s\n]*$');
+  return jsonRegex.hasMatch(trimmed);
 }
 
 String? parseOperationNameFromRequest(Map<String, dynamic> data) {
