@@ -1,6 +1,15 @@
 # Changelog
 
+## 3.1.4 (2026-08-18)
+
+- Updated dependencies: `dio` to `^5.11.0`, `equatable` to `^2.1.0`, and `web` to `^1.1.1`
+- Added support for `DioExceptionType.transformTimeout` in `DioLogger` and `GraphqlDioLogger`
+- Updated web printer conditional export to use `dart.library.js_interop` for WASM and modern web support
+- Added comprehensive unit test suite
+
 ## 3.1.3 (2026-04-06)
+
+- Enhanced JSON decoding in decode method
 
 ## 3.1.2 (2026-04-06)
 
