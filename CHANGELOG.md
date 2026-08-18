@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.1.5(2026-08-18)
+
+- migrate to OIDC for the publishing
+
 ## 3.1.4 (2026-08-18)
 
 - Updated dependencies: `dio` to `^5.11.0`, `equatable` to `^2.1.0`, and `web` to `^1.1.1`
