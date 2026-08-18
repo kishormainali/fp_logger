@@ -1,1 +1,1 @@
-export '_printer_io.dart' if (dart.library.html) '_printer_web.dart';
+export '_printer_io.dart' if (dart.library.js_interop) '_printer_web.dart';

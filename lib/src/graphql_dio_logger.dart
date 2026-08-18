@@ -232,6 +232,14 @@ class GraphqlDioLogger extends Interceptor {
           tag: tag,
           redact: redact,
         );
+      case DioExceptionType.transformTimeout:
+        Logger.e(
+          'Transform timeout: $uri',
+          error: err.error,
+          stackTrace: err.stackTrace,
+          tag: tag,
+          redact: redact,
+        );
       case DioExceptionType.connectionError:
         Logger.e(
           'Connection error: ${err.message}',

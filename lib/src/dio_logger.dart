@@ -301,6 +301,14 @@ class DioLogger extends Interceptor {
           tag: tag,
           redact: redact,
         );
+      case DioExceptionType.transformTimeout:
+        Logger.e(
+          'Request $uri with method $method\nTransform timeout in ${startTime != null ? DateTime.now().difference(startTime).inMilliseconds : 'unknown'}ms',
+          error: err.error,
+          stackTrace: err.stackTrace,
+          tag: tag,
+          redact: redact,
+        );
       case DioExceptionType.connectionError:
         Logger.e(
           'Request $uri with method $method\nConnection error: ${err.message}',
