@@ -136,16 +136,23 @@ void main() {
   });
 
   group('DioLogger', () {
-    test('DioLogger handles all DioExceptionType cases including transformTimeout',
+    test(
+        'DioLogger handles all DioExceptionType cases including transformTimeout',
         () {
       const logger = DioLogger();
       final requestOptions = dio.RequestOptions(
         path: '/test',
         baseUrl: 'https://api.example.com',
         method: 'POST',
-        headers: {'Authorization': 'Bearer secret_token', 'Accept': 'application/json'},
+        headers: {
+          'Authorization': 'Bearer secret_token',
+          'Accept': 'application/json'
+        },
         data: {'password': '123', 'query': 'data'},
-        extra: {'startTime': DateTime.now().subtract(const Duration(milliseconds: 100))},
+        extra: {
+          'startTime':
+              DateTime.now().subtract(const Duration(milliseconds: 100))
+        },
       );
 
       for (final type in dio.DioExceptionType.values) {
@@ -199,7 +206,8 @@ void main() {
   });
 
   group('GraphqlDioLogger', () {
-    test('GraphqlDioLogger handles all DioExceptionType cases including transformTimeout',
+    test(
+        'GraphqlDioLogger handles all DioExceptionType cases including transformTimeout',
         () {
       const logger = GraphqlDioLogger();
       final requestOptions = dio.RequestOptions(
@@ -221,7 +229,11 @@ void main() {
           response: dio.Response(
             requestOptions: requestOptions,
             statusCode: 400,
-            data: {'errors': [{'message': 'GraphQL syntax error'}]},
+            data: {
+              'errors': [
+                {'message': 'GraphQL syntax error'}
+              ]
+            },
           ),
         );
 
@@ -334,7 +346,8 @@ void main() {
       final responses = await stream.toList();
 
       expect(responses.length, equals(1));
-      expect(responses.first.errors?.first.message, equals('Something went wrong'));
+      expect(responses.first.errors?.first.message,
+          equals('Something went wrong'));
     });
   });
 }
