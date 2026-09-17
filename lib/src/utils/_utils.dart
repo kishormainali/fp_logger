@@ -191,7 +191,7 @@ dynamic decode(dynamic message) {
 bool _canDecode(dynamic message) {
   if (message is! String) return false;
   final trimmed = message.trim();
-  final jsonRegex = RegExp(r'^[\s\n]*({.*}|[.*])[\s\n]*$');
+  final jsonRegex = RegExp(r'^({.*}|\[.*\])$');
   return jsonRegex.hasMatch(trimmed);
 }
 

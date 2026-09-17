@@ -1,2 +1,3 @@
-// ignore: avoid_print
-void outputLog(List<String> message) => message.forEach(print);
+import 'package:flutter/foundation.dart';
+
+void outputLog(List<String> message) => message.forEach(debugPrint);

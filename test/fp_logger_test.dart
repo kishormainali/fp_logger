@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart' as dio;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fp_logger/fp_logger.dart';
+import 'package:fp_logger/src/utils/_printer.dart' as printer;
 import 'package:gql/language.dart';
 import 'package:gql_exec/gql_exec.dart' as gql;
 import 'package:gql_link/gql_link.dart';
@@ -348,6 +350,27 @@ void main() {
       expect(responses.length, equals(1));
       expect(responses.first.errors?.first.message,
           equals('Something went wrong'));
+    });
+  });
+
+  group('outputLog', () {
+    final originalDebugPrint = debugPrint;
+
+    tearDown(() {
+      debugPrint = originalDebugPrint;
+    });
+
+    test('forwards every line to debugPrint without dropping any', () {
+      final captured = <String?>[];
+      debugPrint = (message, {wrapWidth}) => captured.add(message);
+
+      // Simulate a large burst (e.g. a big boxed response) to make sure
+      // nothing is silently excluded when many lines are emitted at once.
+      final lines = List.generate(500, (i) => 'line $i');
+      printer.outputLog(lines);
+
+      expect(captured.length, equals(lines.length));
+      expect(captured, equals(lines));
     });
   });
 }

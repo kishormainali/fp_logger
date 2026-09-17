@@ -29,15 +29,9 @@ enum _LogLevel {
   String get label => toString();
 
   /// Returns the ansi color associated with the log level.
-  AnsiPen get color {
-    return switch (this) {
-      _LogLevel.debug => AnsiPen()..cyan(),
-      _LogLevel.info => AnsiPen()..blue(),
-      _LogLevel.warning => AnsiPen()..yellow(),
-      _LogLevel.error => AnsiPen()..red(),
-      _LogLevel.success => AnsiPen()..green(),
-    };
-  }
+  /// Cached per level - AnsiPen construction is not free and this is
+  /// looked up once per output line.
+  AnsiPen get color => _levelColors[this]!;
 
   /// Returns the icon associated with the log level.
   String get icon {
@@ -58,6 +52,15 @@ enum _LogLevel {
     };
   }
 }
+
+/// Cached ansi pens - one instance per level, reused across all log calls.
+final Map<_LogLevel, AnsiPen> _levelColors = {
+  _LogLevel.debug: AnsiPen()..cyan(),
+  _LogLevel.info: AnsiPen()..blue(),
+  _LogLevel.warning: AnsiPen()..yellow(),
+  _LogLevel.error: AnsiPen()..red(),
+  _LogLevel.success: AnsiPen()..green(),
+};
 
 /// Cached redactor instance - singleton, compiled regex reused.
 final _redactor = Redactor();
@@ -145,8 +148,8 @@ abstract class Logger {
         bottomLine,
       ];
 
-      final coloredOutputs =
-          outputs.map((m) => level.color.write(m.trim())).toList();
+      final pen = level.color;
+      final coloredOutputs = outputs.map((m) => pen.write(m.trim())).toList();
       outputLog(coloredOutputs);
     } catch (e, st) {
       // Fallback logging if formatting fails

@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.1.6 (2026-09-17)
+
+- Cached `AnsiPen` per log level instead of allocating a new one for every output line, reducing allocations for boxed multi-line messages
+- Fixed a broken JSON-array-detection regex in `decode` so JSON array strings are pretty-printed like objects already were
+- Switched console output to `debugPrint` instead of `print` to avoid Android logcat dropping/truncating bursty log output
+- Updated dependencies: `dio` to `^5.11.1`, `equatable` to `^3.0.0`, and `lints` to `^6.1.0`
+
 ## 3.1.5(2026-08-18)
 
 - migrate to OIDC for the publishing
